@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order Confirmed — Own Your Shape</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f4f0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:48px 16px;">
+    <tr>
+      <td align="center">
+        <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border:0.5px solid #d8d6ce;">
+
+          <!-- Brand header -->
+          <tr>
+            <td align="center" style="padding:40px 40px 28px;">
+              <p style="margin:0;font-size:20px;letter-spacing:0.14em;text-transform:uppercase;color:#1a1a1a;font-weight:400;">Own Your Shape</p>
+              <p style="margin:5px 0 0;font-size:8px;letter-spacing:0.3em;text-transform:uppercase;color:#9a9891;">Gymwear &amp; Swimwear</p>
+            </td>
+          </tr>
+
+          <tr><td style="height:1px;background:#e8e6de;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+          <!-- Thank you block -->
+          <tr>
+            <td align="center" style="padding:40px 40px 28px;">
+              <!-- Checkmark circle -->
+              <div style="width:52px;height:52px;background:#f0efe8;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3d3c38" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <p style="margin:0 0 8px;font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:#9a9891;">Order confirmed</p>
+              <h1 style="margin:0 0 12px;font-size:32px;font-weight:300;color:#1a1a1a;">Thank you, {{ order.shipping_name }}!</h1>
+              <p style="margin:0;font-size:14px;color:#6b6960;line-height:1.75;">
+                Your order <strong style="color:#3d3c38;font-weight:400;">{{ order.order_number }}</strong> has been placed successfully.
+                We'll send you another email once it's on its way.
+              </p>
+            </td>
+          </tr>
+
+          <tr><td style="height:1px;background:#e8e6de;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+          <!-- Order items -->
+          <tr>
+            <td style="padding:28px 40px 0;">
+              <p style="margin:0 0 16px;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#9a9891;font-weight:400;">Items ordered</p>
+
+              {% for item in items %}
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
+                <tr>
+                  <td style="padding:12px 0;border-bottom:0.5px solid #eeece4;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="font-size:14px;color:#1a1a1a;font-family:Georgia,serif;font-weight:300;">
+                          {{ item.product_name }}
+                          {% if item.size %}<span style="font-size:11px;color:#9a9891;font-family:'Helvetica Neue',sans-serif;"> &mdash; {{ item.size }}</span>{% endif %}
+                          {% if item.colour %}<span style="font-size:11px;color:#9a9891;font-family:'Helvetica Neue',sans-serif;"> / {{ item.colour }}</span>{% endif %}
+                        </td>
+                        <td align="right" style="font-size:13px;color:#3d3c38;white-space:nowrap;">
+                          {% if item.quantity > 1 %}<span style="color:#9a9891;font-size:11px;">× {{ item.quantity }} &nbsp;</span>{% endif %}
+                          R {{ item.line_total|floatformat:0 }}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              {% endfor %}
+            </td>
+          </tr>
+
+          <!-- Totals -->
+          <tr>
+            <td style="padding:0 40px 32px;">
+              {% if order.discount > 0 %}
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="font-size:12px;color:#9a9891;padding:8px 0;border-bottom:0.5px solid #eeece4;">Subtotal</td>
+                  <td align="right" style="font-size:12px;color:#9a9891;padding:8px 0;border-bottom:0.5px solid #eeece4;">R {{ order.subtotal|floatformat:0 }}</td>
+                </tr>
+                <tr>
+                  <td style="font-size:12px;color:#4a7a5a;padding:8px 0;border-bottom:0.5px solid #eeece4;">Discount</td>
+                  <td align="right" style="font-size:12px;color:#4a7a5a;padding:8px 0;border-bottom:0.5px solid #eeece4;">&minus;R {{ order.discount|floatformat:0 }}</td>
+                </tr>
+              </table>
+              {% endif %}
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="font-size:12px;color:#9a9891;padding:8px 0;border-bottom:0.5px solid #eeece4;">Delivery</td>
+                  <td align="right" style="font-size:12px;color:#9a9891;padding:8px 0;border-bottom:0.5px solid #eeece4;">
+                    {% if order.delivery_fee == 0 %}Free{% else %}R {{ order.delivery_fee|floatformat:0 }}{% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-size:16px;color:#1a1a1a;padding:14px 0 0;font-weight:400;">Total</td>
+                  <td align="right" style="font-size:16px;color:#1a1a1a;padding:14px 0 0;font-weight:400;">R {{ order.total|floatformat:0 }}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr><td style="height:1px;background:#e8e6de;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+          <!-- Shipping address -->
+          <tr>
+            <td style="padding:28px 40px;">
+              <p style="margin:0 0 12px;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#9a9891;">Shipping to</p>
+              <p style="margin:0;font-size:13px;color:#3d3c38;line-height:1.8;">
+                {{ order.shipping_name }}<br/>
+                {{ order.shipping_street }}<br/>
+                {{ order.shipping_city }}, {{ order.shipping_province }} {{ order.shipping_postal_code }}
+              </p>
+            </td>
+          </tr>
+
+          <tr><td style="height:1px;background:#e8e6de;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+          <!-- Payment note -->
+          <tr>
+            <td style="padding:24px 40px;">
+              <p style="margin:0;font-size:12px;color:#9a9891;line-height:1.75;">
+                Payment details will be sent to you separately. We accept EFT, Visa, Mastercard and PayFast.
+                If you have any questions, reply to this email.
+              </p>
+            </td>
+          </tr>
+
+          <tr><td style="height:1px;background:#e8e6de;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:22px 40px;">
+              <p style="margin:0;font-size:11px;color:#b5b3ac;letter-spacing:0.06em;">&copy; Own Your Shape &mdash; Gymwear &amp; Swimwear</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

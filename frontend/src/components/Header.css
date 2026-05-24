@@ -1,0 +1,105 @@
+.promo-strip {
+  background: var(--n900); overflow: hidden; padding: 9px 0;
+}
+.promo-marquee {
+  display: flex; white-space: nowrap;
+  animation: marquee 30s linear infinite;
+}
+.promo-marquee span {
+  font-size: 10px; letter-spacing: .16em; color: var(--n300); padding-right: 4rem;
+}
+.promo-marquee strong { color: var(--white); font-weight: 400; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+.site-header {
+  position: sticky; top: 0; z-index: 200;
+  background: var(--white); border-bottom: 0.5px solid var(--n200);
+  transition: box-shadow var(--ease);
+}
+.site-header.scrolled { box-shadow: 0 2px 24px rgba(42,31,22,.07); }
+
+.header-inner {
+  max-width: 1440px; margin: 0 auto; padding: 0 3rem;
+  height: 64px; display: flex; align-items: center;
+  justify-content: space-between; gap: 2rem;
+}
+
+.header-logo { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
+.logo-name {
+  font-family: var(--font-serif); font-size: 22px; font-weight: 400;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--n900); line-height: 1;
+}
+.logo-sub {
+  font-size: 8px; letter-spacing: .28em; text-transform: uppercase;
+  color: var(--n400); font-weight: 400;
+}
+
+.header-nav ul { display: flex; gap: 2.5rem; list-style: none; }
+.header-nav a {
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--n700); font-weight: 400; position: relative; padding-bottom: 2px;
+  transition: color var(--ease);
+}
+.header-nav a::after {
+  content: ''; position: absolute; bottom: -2px; left: 0;
+  width: 0; height: 0.5px; background: var(--n900); transition: width var(--ease);
+}
+.header-nav a:hover, .header-nav a.active { color: var(--n900); }
+.header-nav a:hover::after, .header-nav a.active::after { width: 100%; }
+
+.header-icons { display: flex; align-items: center; gap: 1.25rem; flex-shrink: 0; }
+.icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--n700); background: none; border: none;
+  padding: 4px; transition: color var(--ease); position: relative;
+}
+.icon-btn:hover { color: var(--n900); }
+
+.user-dot {
+  position: absolute; top: 2px; right: 2px;
+  width: 6px; height: 6px; background: var(--n400); border-radius: 50%;
+}
+.cart-btn { position: relative; }
+.cart-badge {
+  position: absolute; top: -6px; right: -6px;
+  width: 16px; height: 16px; background: var(--n900); color: var(--white);
+  border-radius: 50%; font-size: 9px; font-weight: 400;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.hamburger {
+  display: none; flex-direction: column; gap: 5px;
+  background: none; border: none; padding: 4px;
+}
+.hamburger span {
+  display: block; width: 22px; height: 0.5px; background: var(--n900);
+  transition: transform var(--ease), opacity var(--ease); transform-origin: center;
+}
+.hamburger.open span:nth-child(1) { transform: translateY(5.5px) rotate(45deg); }
+.hamburger.open span:nth-child(2) { opacity: 0; }
+.hamburger.open span:nth-child(3) { transform: translateY(-5.5px) rotate(-45deg); }
+
+.mobile-drawer {
+  position: fixed; top: 0; right: -100%; width: min(320px,85vw); height: 100vh;
+  background: var(--white); z-index: 300; padding: 5rem 2.5rem 2.5rem;
+  transition: right .35s ease; border-left: 0.5px solid var(--n200);
+}
+.mobile-drawer.open { right: 0; }
+.mobile-drawer ul { list-style: none; display: flex; flex-direction: column; }
+.mobile-drawer li { border-bottom: 0.5px solid var(--n100); }
+.mobile-drawer a, .drawer-logout {
+  display: block; padding: 1rem 0; font-size: 12px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--n700); font-weight: 400;
+  transition: color var(--ease); background: none; border: none; width: 100%; text-align: left;
+}
+.mobile-drawer a:hover, .drawer-logout:hover { color: var(--n900); }
+.drawer-overlay {
+  position: fixed; inset: 0; background: rgba(42,31,22,.25); z-index: 250;
+}
+
+@media (max-width: 900px) {
+  .header-nav { display: none; }
+  .hamburger { display: flex; }
+  .header-inner { padding: 0 1.5rem; }
+}
+@media (max-width: 480px) { .logo-name { font-size: 18px; } }

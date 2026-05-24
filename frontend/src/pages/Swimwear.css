@@ -1,0 +1,296 @@
+/* ── Swimwear Collection Page ── */
+
+.sw-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 3rem 3rem 5rem;
+}
+
+/* ── Page header ── */
+.sw-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 0.5px solid var(--n200, #e0ddd8);
+}
+.sw-page-title {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 32px;
+  font-weight: 300;
+  color: var(--n900, #1a1a1a);
+  margin-bottom: .3rem;
+}
+.sw-page-count {
+  font-size: 11px;
+  letter-spacing: .1em;
+  color: var(--n400, #aaa);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.sw-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Search */
+.sw-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0.5px solid var(--n200, #e0ddd8);
+  padding: 7px 14px;
+  background: var(--white, #fff);
+}
+.sw-search svg { stroke: var(--n400, #aaa); flex-shrink: 0; }
+.sw-search__input {
+  border: none;
+  outline: none;
+  font-size: 11px;
+  color: var(--n900, #1a1a1a);
+  font-family: var(--font-sans, Arial, sans-serif);
+  width: 140px;
+  background: transparent;
+}
+.sw-search__input::placeholder { color: var(--n300, #ccc); }
+
+/* Sort */
+.sw-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0.5px solid var(--n200, #e0ddd8);
+  padding: 7px 14px;
+  background: var(--white, #fff);
+}
+.sw-sort__label {
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--n500, #888);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.sw-sort__select {
+  border: none;
+  outline: none;
+  font-size: 11px;
+  color: var(--n900, #1a1a1a);
+  font-family: var(--font-sans, Arial, sans-serif);
+  background: transparent;
+  cursor: pointer;
+}
+
+/* ── Filter bar ── */
+.sw-filter-bar {
+  display: flex;
+  gap: .25rem;
+  margin-bottom: 2rem;
+}
+.sw-filter-btn {
+  background: none;
+  border: 0.5px solid transparent;
+  padding: 6px 18px;
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--n500, #888);
+  cursor: pointer;
+  transition: all .2s;
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.sw-filter-btn:hover,
+.sw-filter-btn.active {
+  border-color: var(--n900, #1a1a1a);
+  color: var(--n900, #1a1a1a);
+}
+
+/* ── Product Grid — 4 columns ── */
+.sw-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+/* ── Product Card ── */
+.sw-card {
+  cursor: pointer;
+  background: transparent;
+}
+.sw-card:focus-visible { outline: 2px solid var(--n900, #1a1a1a); outline-offset: 2px; }
+
+.sw-card__img-wrap {
+  position: relative;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+  background: var(--n100, #f5f3ef);
+  margin-bottom: .85rem;
+}
+
+/* Inner container — absolutely fills wrap, stays behind overlays */
+.sw-card__img-inner {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transition: transform .55s cubic-bezier(.25,.46,.45,.94);
+  will-change: transform;
+}
+.sw-card:hover .sw-card__img-inner {
+  transform: scale(1.07);
+}
+
+.sw-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+
+/* Soft vignette that fades out on hover — enhances the "coming forward" feel */
+.sw-card__img-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.1) 100%);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity .5s ease;
+  z-index: 1;
+}
+.sw-card:hover .sw-card__img-wrap::after { opacity: 0; }
+
+.sw-card__placeholder {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-serif, Georgia, serif);
+  font-style: italic; font-size: 13px;
+  color: var(--n400, #aaa);
+  background: linear-gradient(160deg, var(--n100, #f5f3ef), var(--n200, #e8e4dc));
+}
+
+/* Badges */
+.sw-badge {
+  position: absolute;
+  top: .85rem; left: .85rem;
+  padding: 3px 10px;
+  font-size: 7px; letter-spacing: .2em; text-transform: uppercase;
+  font-family: var(--font-sans, Arial, sans-serif);
+  z-index: 4;
+}
+.sw-badge--new { background: var(--n900, #1a1a1a); color: #fff; }
+.sw-badge--sale { background: #b83a22; color: #fff; }
+
+/* Wishlist button */
+.sw-wish {
+  position: absolute;
+  top: .85rem; right: .85rem;
+  width: 32px; height: 32px;
+  background: rgba(255,255,255,.9);
+  border: 0.5px solid var(--n200, #e0ddd8);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .3s, background .2s;
+  z-index: 4;
+}
+.sw-card:hover .sw-wish { opacity: 1; }
+.sw-wish:hover { background: var(--n900, #1a1a1a); }
+.sw-wish:hover svg { stroke: #fff; }
+
+/* Hover overlay — sizes + add to bag */
+.sw-card__hover {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all .3s ease;
+  z-index: 4;
+}
+.sw-card:hover .sw-card__hover {
+  opacity: 1;
+  transform: translateY(0);
+}
+.sw-card__sizes {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,.92);
+}
+.sw-card__sz {
+  padding: 3px 7px;
+  font-size: 9px;
+  letter-spacing: .1em;
+  color: var(--n700, #555);
+  border: 0.5px solid var(--n200, #e0ddd8);
+  background: var(--white, #fff);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.sw-card__add {
+  width: 100%;
+  padding: 11px;
+  background: var(--n900, #1a1a1a);
+  color: #fff;
+  border: none;
+  font-size: 9px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: var(--font-sans, Arial, sans-serif);
+  transition: background .2s;
+}
+.sw-card__add:hover { background: var(--n700, #444); }
+
+/* Card info */
+.sw-card__info { padding: 0 2px; }
+.sw-card__name {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--n900, #1a1a1a);
+  margin-bottom: .25rem;
+}
+.sw-card__prices {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+}
+.sw-card__price {
+  font-size: 12px;
+  color: var(--n700, #555);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.sw-card__was {
+  font-size: 11px;
+  color: var(--n300, #bbb);
+  text-decoration: line-through;
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+
+.sw-empty {
+  text-align: center;
+  padding: 5rem;
+  font-size: 14px;
+  color: var(--n400, #aaa);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+
+/* ── Responsive ── */
+@media (max-width: 1200px) {
+  .sw-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 900px) {
+  .sw-page { padding: 2rem 1.5rem 4rem; }
+  .sw-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .sw-page-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+}
+@media (max-width: 480px) {
+  .sw-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .sw-page { padding: 1.5rem 1rem 3rem; }
+}

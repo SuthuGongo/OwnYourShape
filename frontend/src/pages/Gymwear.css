@@ -1,0 +1,327 @@
+/* ── Gymwear Collection Page ── */
+
+.gw-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 3rem 3rem 5rem;
+}
+
+/* ── Page header ── */
+.gw-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 0.5px solid var(--n200, #e0ddd8);
+}
+.gw-page-title {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 32px;
+  font-weight: 300;
+  color: var(--n900, #1a1a1a);
+  margin-bottom: .3rem;
+}
+.gw-page-count {
+  font-size: 11px;
+  letter-spacing: .1em;
+  color: var(--n400, #aaa);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.gw-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* ── Search ── */
+.gw-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0.5px solid var(--n200, #e0ddd8);
+  padding: 7px 14px;
+  background: var(--white, #fff);
+}
+.gw-search svg { stroke: var(--n400, #aaa); flex-shrink: 0; }
+.gw-search__input {
+  border: none;
+  outline: none;
+  font-size: 11px;
+  color: var(--n900, #1a1a1a);
+  font-family: var(--font-sans, Arial, sans-serif);
+  width: 140px;
+  background: transparent;
+}
+.gw-search__input::placeholder { color: var(--n300, #ccc); }
+
+/* ── Sort ── */
+.gw-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0.5px solid var(--n200, #e0ddd8);
+  padding: 7px 14px;
+  background: var(--white, #fff);
+}
+.gw-sort__label {
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--n500, #888);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.gw-sort__select {
+  border: none;
+  outline: none;
+  font-size: 11px;
+  color: var(--n900, #1a1a1a);
+  font-family: var(--font-sans, Arial, sans-serif);
+  background: transparent;
+  cursor: pointer;
+}
+
+/* ── Filter bar ── */
+.gw-filter-bar {
+  display: flex;
+  gap: .25rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+.gw-filter-btn {
+  background: none;
+  border: 0.5px solid transparent;
+  padding: 6px 18px;
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--n500, #888);
+  cursor: pointer;
+  transition: all .2s;
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.gw-filter-btn:hover,
+.gw-filter-btn.active {
+  border-color: var(--n900, #1a1a1a);
+  color: var(--n900, #1a1a1a);
+}
+
+/* ── Grid — 4 columns ── */
+.gw-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+/* ── Product Card ── */
+.gw-card {
+  cursor: pointer;
+  background: transparent;
+}
+.gw-card:focus-visible { outline: 2px solid var(--n900, #1a1a1a); outline-offset: 2px; }
+
+.gw-card__img-wrap {
+  position: relative;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+  background: var(--n100, #f5f3ef);
+  margin-bottom: .85rem;
+}
+
+.gw-card__img-inner {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transition: transform .55s cubic-bezier(.25,.46,.45,.94);
+  will-change: transform;
+}
+.gw-card:hover .gw-card__img-inner { transform: scale(1.07); }
+
+.gw-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+
+/* Vignette */
+.gw-card__img-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.1) 100%);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity .5s ease;
+  z-index: 1;
+}
+.gw-card:hover .gw-card__img-wrap::after { opacity: 0; }
+
+.gw-card__placeholder {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-serif, Georgia, serif);
+  font-style: italic; font-size: 13px;
+  color: var(--n400, #aaa);
+  background: linear-gradient(160deg, var(--n100, #f5f3ef), var(--n200, #e8e4dc));
+}
+
+/* Badges */
+.gw-badge {
+  position: absolute;
+  top: .85rem; left: .85rem;
+  padding: 3px 10px;
+  font-size: 7px; letter-spacing: .2em; text-transform: uppercase;
+  font-family: var(--font-sans, Arial, sans-serif);
+  z-index: 4;
+}
+.gw-badge--new { background: var(--n900, #1a1a1a); color: #fff; }
+.gw-badge--sale { background: #b83a22; color: #fff; }
+
+/* Wishlist */
+.gw-wish {
+  position: absolute;
+  top: .85rem; right: .85rem;
+  width: 32px; height: 32px;
+  background: rgba(255,255,255,.9);
+  border: 0.5px solid var(--n200, #e0ddd8);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .3s, background .2s;
+  z-index: 4;
+}
+.gw-card:hover .gw-wish { opacity: 1; }
+.gw-wish:hover { background: var(--n900, #1a1a1a); }
+.gw-wish:hover svg { stroke: #fff; }
+
+/* Hover overlay */
+.gw-card__hover {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all .3s ease;
+  z-index: 4;
+}
+.gw-card:hover .gw-card__hover { opacity: 1; transform: translateY(0); }
+
+.gw-card__sizes {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,.92);
+  flex-wrap: wrap;
+}
+.gw-card__sz {
+  padding: 3px 7px;
+  font-size: 9px;
+  letter-spacing: .1em;
+  color: var(--n700, #555);
+  border: 0.5px solid var(--n200, #e0ddd8);
+  background: var(--white, #fff);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.gw-card__add {
+  width: 100%;
+  padding: 11px;
+  background: var(--n900, #1a1a1a);
+  color: #fff;
+  border: none;
+  font-size: 9px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: var(--font-sans, Arial, sans-serif);
+  transition: background .2s;
+}
+.gw-card__add:hover { background: var(--n700, #444); }
+
+/* ── Card info ── */
+.gw-card__info { padding: 0 2px; }
+
+.gw-card__name {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--n900, #1a1a1a);
+  margin-bottom: .45rem;
+}
+
+/* ── Colour swatches ── */
+.gw-card__swatches {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: .4rem;
+  flex-wrap: wrap;
+}
+.gw-swatch {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  outline: 1.5px solid transparent;
+  outline-offset: 1.5px;
+  cursor: pointer;
+  transition: outline-color .18s, transform .18s;
+  padding: 0;
+  flex-shrink: 0;
+}
+.gw-swatch:hover { outline-color: var(--n400, #aaa); transform: scale(1.15); }
+.gw-swatch.on    { outline-color: var(--n900, #1a1a1a); transform: scale(1.15); }
+
+.gw-swatch-count {
+  font-size: 9px;
+  letter-spacing: .06em;
+  color: var(--n400, #aaa);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+
+/* ── Prices ── */
+.gw-card__prices {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+}
+.gw-card__price {
+  font-size: 12px;
+  color: var(--n700, #555);
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+.gw-card__was {
+  font-size: 11px;
+  color: var(--n300, #bbb);
+  text-decoration: line-through;
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+
+/* ── Empty state ── */
+.gw-empty {
+  text-align: center;
+  padding: 5rem;
+  font-size: 14px;
+  color: var(--n400, #aaa);
+  font-family: var(--font-sans, Arial, sans-serif);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1200px) { .gw-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px) {
+  .gw-page { padding: 2rem 1.5rem 4rem; }
+  .gw-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .gw-page-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+}
+@media (max-width: 480px) {
+  .gw-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .gw-page { padding: 1.5rem 1rem 3rem; }
+}
