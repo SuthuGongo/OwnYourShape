@@ -1,10 +1,14 @@
+import logging
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
+from django.conf import settings
 from .models import Order
 from .serializers import OrderCreateSerializer, OrderSerializer
+
+logger = logging.getLogger(__name__)
 
 PROMO_CODES = {
     'WELCOME': 10,
@@ -21,7 +25,7 @@ def send_order_confirmation(order):
         'order': order,
         'items': order.items.all(),
     }
-    html_body  = render_to_string('emails/order_confirmation.html', context)
+    html_body = render_to_string('emails/order_confirmation.html', context)
     plain_body = (
         f"Hi {order.shipping_name},\n\n"
         f"Thank you for your order!\n\n"
@@ -30,14 +34,64 @@ def send_order_confirmation(order):
         f"We'll be in touch once your order is on its way.\n\n"
         f"— Own Your Shape Team"
     )
-    msg = EmailMultiAlternatives(
-        subject=f'Order confirmed — {order.order_number}',
-        body=plain_body,
-        from_email=FROM_EMAIL,
-        to=[order.email],
-    )
-    msg.attach_alternative(html_body, 'text/html')
-    msg.send(fail_silently=True)  # don't block the response if email fails
+    try:
+        msg = EmailMultiAlternatives(
+            subject=f'Order confirmed — {order.order_number}',
+            body=plain_body,
+            from_email=FROM_EMAIL,
+            to=[order.email],
+        )
+        msg.attach_alternative(html_body, 'text/html')
+        msg.send(fail_silently=False)
+        logger.info(f"Confirmation email sent for {order.order_number} to {order.email}")
+    except Exception as e:
+        logger.error(f"Email failed for {order.order_number}: {e}")
+
+
+def send_order_sms(order):
+    """Send SMS via Africa's Talking — only runs if credentials are configured."""
+    try:
+        import africastalking
+    except ImportError:
+        logger.info("africastalking not installed — SMS skipped.")
+        return
+
+    phone = getattr(order, 'shipping_phone', None)
+    if not phone:
+        logger.info(f"SMS skipped for {order.order_number} — no phone number.")
+        return
+
+    phone = phone.strip().replace(' ', '').replace('-', '')
+    if phone.startswith('0') and len(phone) == 10:
+        phone = '+27' + phone[1:]
+    if not phone.startswith('+'):
+        logger.warning(f"SMS skipped — unrecognised number format: {phone}")
+        return
+
+    username  = getattr(settings, 'AT_USERNAME', '')
+    api_key   = getattr(settings, 'AT_API_KEY', '')
+    sender_id = getattr(settings, 'AT_SENDER_ID', '') or None
+
+    if not username or not api_key:
+        logger.info("SMS skipped — AT_USERNAME or AT_API_KEY not set.")
+        return
+
+    try:
+        africastalking.initialize(username, api_key)
+        sms = africastalking.SMS
+        message = (
+            f"Hi {order.shipping_name.split()[0]}! "
+            f"Your Own Your Shape order {order.order_number} "
+            f"(R{int(order.total)}) is confirmed. "
+            f"We'll notify you when it ships."
+        )
+        kwargs = dict(message=message, recipients=[phone])
+        if sender_id:
+            kwargs['sender_id'] = sender_id
+        response = sms.send(**kwargs)
+        logger.info(f"SMS sent for {order.order_number}: {response}")
+    except Exception as e:
+        logger.error(f"SMS failed for {order.order_number}: {e}")
 
 
 class ValidatePromoView(APIView):
@@ -58,7 +112,8 @@ class OrderCreateView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
-        send_order_confirmation(order)  # ← send email
+        send_order_confirmation(order)
+        send_order_sms(order)
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 
