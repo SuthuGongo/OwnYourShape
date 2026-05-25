@@ -1,3 +1,4 @@
+import cloudinary
 from rest_framework import serializers
 from .models import Category, Product, ProductImage, ProductVariant, Review
 
@@ -8,6 +9,27 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'description']
 
 
+def get_cloudinary_url(image_field):
+    """
+    Build the correct Cloudinary URL from a Django ImageField backed by cloudinary-storage.
+    Cloudinary stores files without extension; obj.image.url may append .jpeg incorrectly.
+    We use cloudinary.CloudinaryImage to build the proper URL from the public_id.
+    """
+    if not image_field:
+        return None
+    try:
+        # image.name is the public_id e.g. "media/products/image2_kjnvk3"
+        public_id = image_field.name
+        url = cloudinary.CloudinaryImage(public_id).build_url()
+        return url
+    except Exception:
+        # fallback to whatever Django gives us
+        try:
+            return image_field.url
+        except Exception:
+            return None
+
+
 class ProductImageSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
 
@@ -16,12 +38,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image_url', 'alt_text', 'is_main', 'order']
 
     def get_image_url(self, obj):
-        request = self.context.get('request')
-        if obj.image and request:
-            return request.build_absolute_uri(obj.image.url)
-        if obj.image:
-            return obj.image.url
-        return None
+        return get_cloudinary_url(obj.image)
 
 
 class ProductVariantSerializer(serializers.ModelSerializer):
@@ -45,8 +62,6 @@ class ReviewSerializer(serializers.ModelSerializer):
 class ProductListSerializer(serializers.ModelSerializer):
     main_image_url = serializers.SerializerMethodField()
     category = CategorySerializer(read_only=True)
-    # NOTE: no subcategory — model only has category
-    # Filter tabs work by matching category.slug or tags on the frontend
     variants = ProductVariantSerializer(many=True, read_only=True)
     images = serializers.SerializerMethodField()
     discount_percent = serializers.IntegerField(read_only=True)
@@ -64,24 +79,17 @@ class ProductListSerializer(serializers.ModelSerializer):
         ]
 
     def get_main_image_url(self, obj):
-        request = self.context.get('request')
         img = obj.main_image
-        if img and img.image:
-            if request:
-                return request.build_absolute_uri(img.image.url)
-            return img.image.url
+        if img:
+            return get_cloudinary_url(img.image)
         return None
 
     def get_images(self, obj):
-        request = self.context.get('request')
         result = []
         for img in obj.images.all():
-            url = None
-            if img.image:
-                url = request.build_absolute_uri(img.image.url) if request else img.image.url
             result.append({
                 'id': img.id,
-                'image_url': url,
+                'image_url': get_cloudinary_url(img.image),
                 'alt_text': img.alt_text,
                 'is_main': img.is_main,
                 'order': img.order,
@@ -96,7 +104,6 @@ class ProductListSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    # Fixed: removed context={'request': None} that was breaking image URLs
     images = ProductImageSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
     reviews = ReviewSerializer(many=True, read_only=True)
