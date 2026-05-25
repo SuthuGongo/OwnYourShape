@@ -19,6 +19,9 @@ class ProductImageSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
+        # Fallback: return relative URL if no request in context
+        if obj.image:
+            return obj.image.url
         return None
 
 
@@ -42,23 +45,53 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 class ProductListSerializer(serializers.ModelSerializer):
     main_image_url = serializers.SerializerMethodField()
-    category_name = serializers.CharField(source='category.name', read_only=True)
+    # FIX: expose category as nested object (not just category_name string)
+    # so that p.category?.slug works in the frontend for breadcrumbs/links
+    category = CategorySerializer(read_only=True)
+    # FIX: expose subcategory so the filter tabs (bikinis, sets, leggings etc) work
+    subcategory = CategorySerializer(read_only=True)
+    # FIX: expose variants so colour swatches + size pills show on collection pages
+    variants = ProductVariantSerializer(many=True, read_only=True)
+    # FIX: expose images so GymCard colour-swatch image-swap works
+    images = serializers.SerializerMethodField()
     discount_percent = serializers.IntegerField(read_only=True)
     is_wishlisted = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'category_name', 'price', 'compare_at_price',
-            'discount_percent', 'main_image_url', 'is_featured', 'is_wishlisted',
+            'id', 'name', 'slug',
+            'category', 'subcategory',          # nested objects with slug
+            'price', 'compare_at_price', 'discount_percent',
+            'main_image_url', 'images',          # images for colour-swap
+            'variants',                          # sizes + colours for hover bar
+            'is_featured', 'is_wishlisted',
         ]
 
     def get_main_image_url(self, obj):
         request = self.context.get('request')
         img = obj.main_image
-        if img and request:
-            return request.build_absolute_uri(img.image.url)
+        if img and img.image:
+            if request:
+                return request.build_absolute_uri(img.image.url)
+            return img.image.url
         return None
+
+    def get_images(self, obj):
+        request = self.context.get('request')
+        result = []
+        for img in obj.images.all():
+            url = None
+            if img.image:
+                url = request.build_absolute_uri(img.image.url) if request else img.image.url
+            result.append({
+                'id': img.id,
+                'image_url': url,
+                'alt_text': img.alt_text,
+                'is_main': img.is_main,
+                'order': img.order,
+            })
+        return result
 
     def get_is_wishlisted(self, obj):
         request = self.context.get('request')
@@ -68,10 +101,13 @@ class ProductListSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(many=True, read_only=True, context={'request': None})
+    # FIX: removed context={'request': None} — that was hardcoding request as None
+    # which made every image URL return None. Now it inherits context properly.
+    images = ProductImageSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
     reviews = ReviewSerializer(many=True, read_only=True)
     category = CategorySerializer(read_only=True)
+    subcategory = CategorySerializer(read_only=True)
     discount_percent = serializers.IntegerField(read_only=True)
     avg_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
@@ -80,9 +116,12 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'category', 'description', 'fabric_care',
-            'sizing_fit', 'price', 'compare_at_price', 'discount_percent',
-            'images', 'variants', 'reviews', 'avg_rating', 'review_count',
+            'id', 'name', 'slug',
+            'category', 'subcategory',
+            'description', 'fabric_care', 'sizing_fit',
+            'price', 'compare_at_price', 'discount_percent',
+            'images', 'variants', 'reviews',
+            'avg_rating', 'review_count',
             'is_featured', 'is_wishlisted', 'created_at',
         ]
 
@@ -100,11 +139,3 @@ class ProductSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return obj.wishlisted_by.filter(id=request.user.id).exists()
         return False
-
-    def to_representation(self, instance):
-        rep = super().to_representation(instance)
-        request = self.context.get('request')
-        for img in rep.get('images', []):
-            if img.get('image_url') and request:
-                pass
-        return rep

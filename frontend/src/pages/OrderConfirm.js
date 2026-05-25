@@ -180,7 +180,7 @@ export function OrderConfirm() {
                 flexWrap: 'wrap',
               }}
             >
-              <Link to="/lingerie" className="btn-primary">
+              <Link to="/swimwear" className="btn-primary">
                 Continue Shopping
               </Link>
 

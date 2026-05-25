@@ -127,12 +127,21 @@ CORS_ALLOW_CREDENTIALS = True
 # ── Email ─────────────────────────────────────────────────────────────────────
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Own Your Shape <noreply@ownyourshape.co.za>')
 
-# Development default — prints to terminal. Switch to SMTP in production.
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
-
-# Production SMTP (set these in your .env when ready)
 EMAIL_HOST          = config('EMAIL_HOST',          default='smtp.gmail.com')
-EMAIL_PORT          = config('EMAIL_PORT',          default=587,  cast=int)
+EMAIL_PORT          = config('EMAIL_PORT',          default=587, cast=int)
 EMAIL_USE_TLS       = config('EMAIL_USE_TLS',       default=True, cast=bool)
 EMAIL_HOST_USER     = config('EMAIL_HOST_USER',     default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+
+# Auto-switches to real SMTP as soon as credentials are set.
+# Locally without credentials → prints to terminal (safe default).
+# On Railway → set EMAIL_HOST_USER + EMAIL_HOST_PASSWORD and it just works.
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# ── SMS (Africa's Talking) ────────────────────────────────────────────────────
+AT_USERNAME  = config('AT_USERNAME',  default='')
+AT_API_KEY   = config('AT_API_KEY',   default='')
+AT_SENDER_ID = config('AT_SENDER_ID', default='')
