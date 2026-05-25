@@ -19,7 +19,6 @@ class ProductImageSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
-        # Fallback: return relative URL if no request in context
         if obj.image:
             return obj.image.url
         return None
@@ -45,14 +44,10 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 class ProductListSerializer(serializers.ModelSerializer):
     main_image_url = serializers.SerializerMethodField()
-    # FIX: expose category as nested object (not just category_name string)
-    # so that p.category?.slug works in the frontend for breadcrumbs/links
     category = CategorySerializer(read_only=True)
-    # FIX: expose subcategory so the filter tabs (bikinis, sets, leggings etc) work
-    subcategory = CategorySerializer(read_only=True)
-    # FIX: expose variants so colour swatches + size pills show on collection pages
+    # NOTE: no subcategory — model only has category
+    # Filter tabs work by matching category.slug or tags on the frontend
     variants = ProductVariantSerializer(many=True, read_only=True)
-    # FIX: expose images so GymCard colour-swatch image-swap works
     images = serializers.SerializerMethodField()
     discount_percent = serializers.IntegerField(read_only=True)
     is_wishlisted = serializers.SerializerMethodField()
@@ -61,10 +56,10 @@ class ProductListSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'name', 'slug',
-            'category', 'subcategory',          # nested objects with slug
+            'category',
             'price', 'compare_at_price', 'discount_percent',
-            'main_image_url', 'images',          # images for colour-swap
-            'variants',                          # sizes + colours for hover bar
+            'main_image_url', 'images',
+            'variants',
             'is_featured', 'is_wishlisted',
         ]
 
@@ -101,13 +96,11 @@ class ProductListSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    # FIX: removed context={'request': None} — that was hardcoding request as None
-    # which made every image URL return None. Now it inherits context properly.
+    # Fixed: removed context={'request': None} that was breaking image URLs
     images = ProductImageSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
     reviews = ReviewSerializer(many=True, read_only=True)
     category = CategorySerializer(read_only=True)
-    subcategory = CategorySerializer(read_only=True)
     discount_percent = serializers.IntegerField(read_only=True)
     avg_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
@@ -117,7 +110,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'name', 'slug',
-            'category', 'subcategory',
+            'category',
             'description', 'fabric_care', 'sizing_fit',
             'price', 'compare_at_price', 'discount_percent',
             'images', 'variants', 'reviews',
