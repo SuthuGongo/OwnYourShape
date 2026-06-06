@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from django.contrib.auth import authenticate, get_user_model
@@ -12,13 +13,15 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import EmailVerification, Address
 from .serializers import RegisterSerializer, UserSerializer, AddressSerializer
 
+logger = logging.getLogger(__name__)
+
 User = get_user_model()
 
 PIN_EXPIRY_MINUTES = 15
 FROM_EMAIL = 'Own Your Shape <noreply@ownyourshape.co.za>'
 
 
-# ─── helper ───────────────────────────────────────────────────────────────────
+# ─── helpers ──────────────────────────────────────────────────────────────────
 
 def _issue_pin(email: str) -> str:
     """Delete all old PINs for this email, create a fresh one, return it."""
@@ -46,13 +49,41 @@ def _consume_pin(email: str, pin: str) -> bool:
 
 
 def _send_html_email(to: str, subject: str, template: str, context: dict):
-    """Send a plain-text + HTML multipart email."""
+    """
+    Send a plain-text + HTML multipart email.
+    FIX: Added logging so you can see exactly what fails in Railway logs.
+    The template path must match your actual folder:
+      - File lives at:  <BASE_DIR>/templates/emails/verify_email.html
+      - Loaded as:      'emails/verify_email.html'
+    Make sure that folder exists and is committed to your repo.
+    """
     context['expiry_minutes'] = PIN_EXPIRY_MINUTES
-    html_body  = render_to_string(template, context)
-    plain_body = f"Your Dream In Lace PIN is: {context['pin']}\n\nIt expires in {PIN_EXPIRY_MINUTES} minutes."
-    msg = EmailMultiAlternatives(subject=subject, body=plain_body, from_email=FROM_EMAIL, to=[to])
-    msg.attach_alternative(html_body, 'text/html')
-    msg.send(fail_silently=False)
+
+    try:
+        html_body = render_to_string(template, context)
+    except Exception as e:
+        logger.error(f"Template render failed for '{template}': {e}")
+        raise
+
+    plain_body = (
+        f"Your Own Your Shape PIN is: {context['pin']}\n\n"
+        f"It expires in {PIN_EXPIRY_MINUTES} minutes.\n\n"
+        f"If you didn't request this, ignore this email."
+    )
+
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_body,
+            from_email=FROM_EMAIL,
+            to=[to],
+        )
+        msg.attach_alternative(html_body, 'text/html')
+        msg.send(fail_silently=False)
+        logger.info(f"Email sent to {to} | subject: {subject}")
+    except Exception as e:
+        logger.error(f"Email send failed to {to}: {e}")
+        raise
 
 
 # ─── send signup verification PIN ─────────────────────────────────────────────
@@ -68,15 +99,19 @@ class SendVerificationPinView(APIView):
             return Response({'error': 'An account with this email already exists.'}, status=400)
 
         pin = _issue_pin(email)
+        logger.info(f"Verification PIN issued for {email}")
+
         try:
             _send_html_email(
                 to=email,
-                subject='Verify your email — Dream In Lace',
+                # FIX: was "Dream In Lace" — now correct brand name
+                subject='Verify your email — Own Your Shape',
                 template='emails/verify_email.html',
                 context={'email': email, 'pin': pin},
             )
         except Exception as exc:
-            return Response({'error': f'Failed to send email: {exc}'}, status=500)
+            logger.error(f"Verification email failed for {email}: {exc}")
+            return Response({'error': 'Failed to send verification email. Please try again.'}, status=500)
 
         return Response({'message': 'Verification PIN sent to your email.'})
 
@@ -153,12 +188,14 @@ class SendRecoveryPinView(APIView):
             try:
                 _send_html_email(
                     to=email,
-                    subject='Reset your password — Dream In Lace',
+                    # FIX: was "Dream In Lace" — now correct brand name
+                    subject='Reset your password — Own Your Shape',
                     template='emails/reset_password.html',
                     context={'email': email, 'pin': pin},
                 )
-            except Exception:
-                pass  # silent — don't leak account existence via error either
+            except Exception as e:
+                logger.error(f"Recovery email failed for {email}: {e}")
+                # Silent — don't reveal whether account exists
 
         return Response({'message': 'If that email is registered, a recovery PIN has been sent.'})
 

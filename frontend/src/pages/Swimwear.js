@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import API from '../api/axios';
 import './Swimwear.css';
 
 const FILTERS = [
-  { label: 'All',       value: 'all' },
-  { label: 'Bikinis',   value: 'bikinis' },
-  { label: 'Sets',      value: 'sets' },
-  { label: 'One-Piece', value: 'one-piece' },
-  { label: 'Dresses',   value: 'dresses' },
+  { label: 'All',       value: 'all',       keywords: [] },
+  { label: 'Bikinis',   value: 'bikinis',   keywords: ['bikini'] },
+  { label: 'Sets',      value: 'sets',      keywords: ['set'] },
+  { label: 'One-Piece', value: 'one-piece', keywords: ['one-piece', 'one piece', 'onepiece', 'swimsuit', 'monokini'] },
+  { label: 'Dresses',   value: 'dresses',   keywords: ['dress', 'kaftan', 'cover', 'sarong'] },
 ];
 
 const SORT_OPTIONS = [
@@ -30,21 +30,23 @@ export default function Swimwear() {
 
   useEffect(() => {
     setLoading(true);
-    API.get(`/products/?category__slug=swimwear&ordering=${sort}&page_size=50`)
-      .then(({ data }) => setProducts(data.results || data))
+    API.get(`/products/?category__slug=swimwear&ordering=${sort}&page_size=100`)
+      .then(({ data }) => setProducts(data.results ?? data))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [sort]);
 
+  const activeFilter = FILTERS.find(f => f.value === active);
+
   const filtered = products.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = active === 'all' ||
-      p.subcategory?.slug === active ||
-      p.tags?.includes(active);
+    const nameLower = p.name.toLowerCase();
+    const matchSearch = !search || nameLower.includes(search.toLowerCase());
+    const matchFilter =
+      active === 'all' ||
+      (activeFilter?.keywords ?? []).some(kw => nameLower.includes(kw));
     return matchSearch && matchFilter;
   });
 
-  /* Navigate to product detail — matches route /products/:slug */
   const goToProduct = (slug) => navigate(`/products/${slug}`);
 
   return (
@@ -52,7 +54,6 @@ export default function Swimwear() {
       <Header />
       <main className="sw-page">
 
-        {/* ── Page header ── */}
         <div className="sw-page-header">
           <div>
             <h1 className="sw-page-title">Swimwear Collection</h1>
@@ -85,7 +86,6 @@ export default function Swimwear() {
           </div>
         </div>
 
-        {/* ── Filter tabs ── */}
         <div className="sw-filter-bar">
           {FILTERS.map(f => (
             <button
@@ -98,13 +98,19 @@ export default function Swimwear() {
           ))}
         </div>
 
-        {/* ── Grid ── */}
         {loading ? (
           <div className="spinner-wrap" style={{ minHeight: '40vh' }}>
             <div className="spinner" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="sw-empty">No products found.</div>
+          <div className="sw-empty">
+            <p>No products found{search ? ` for "${search}"` : ''}.</p>
+            {(search || active !== 'all') && (
+              <button className="btn-ghost" onClick={() => { setSearch(''); setActive('all'); }}>
+                Clear filters
+              </button>
+            )}
+          </div>
         ) : (
           <div className="sw-grid">
             {filtered.map((p, i) => (
@@ -116,7 +122,6 @@ export default function Swimwear() {
                 tabIndex={0}
                 onKeyDown={e => e.key === 'Enter' && goToProduct(p.slug)}
               >
-                {/* Image — 3D pop-out on hover */}
                 <div className="sw-card__img-wrap">
                   <div className="sw-card__img-inner">
                     {p.main_image_url ? (
@@ -131,15 +136,13 @@ export default function Swimwear() {
                     )}
                   </div>
 
-                  {/* Badges */}
-                  {p.compare_at_price && (
+                  {p.compare_at_price && parseFloat(p.compare_at_price) > parseFloat(p.price) && (
                     <span className="sw-badge sw-badge--sale">Sale</span>
                   )}
-                  {p.is_featured && !p.compare_at_price && (
+                  {p.is_featured && !(p.compare_at_price && parseFloat(p.compare_at_price) > parseFloat(p.price)) && (
                     <span className="sw-badge sw-badge--new">New</span>
                   )}
 
-                  {/* Wishlist */}
                   <button
                     className="sw-wish"
                     onClick={e => e.stopPropagation()}
@@ -150,7 +153,6 @@ export default function Swimwear() {
                     </svg>
                   </button>
 
-                  {/* Hover overlay — sizes + Add to Bag (→ product detail) */}
                   <div className="sw-card__hover">
                     {p.variants?.length > 0 && (
                       <div className="sw-card__sizes">
@@ -159,7 +161,6 @@ export default function Swimwear() {
                         ))}
                       </div>
                     )}
-                    {/* "Add to Bag" takes user to product detail to pick size/colour */}
                     <button
                       className="sw-card__add"
                       onClick={e => { e.stopPropagation(); goToProduct(p.slug); }}
@@ -169,11 +170,10 @@ export default function Swimwear() {
                   </div>
                 </div>
 
-                {/* Info */}
                 <div className="sw-card__info">
                   <p className="sw-card__name">{p.name}</p>
                   <div className="sw-card__prices">
-                    {p.compare_at_price && (
+                    {p.compare_at_price && parseFloat(p.compare_at_price) > parseFloat(p.price) && (
                       <span className="sw-card__was">R {parseFloat(p.compare_at_price).toLocaleString()}</span>
                     )}
                     <span className="sw-card__price">R {parseFloat(p.price).toLocaleString()}</span>

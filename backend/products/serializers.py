@@ -11,23 +11,18 @@ class CategorySerializer(serializers.ModelSerializer):
 
 def get_cloudinary_url(image_field):
     """
-    Build the correct Cloudinary URL from a Django ImageField backed by cloudinary-storage.
-    Cloudinary stores files without extension; obj.image.url may append .jpeg incorrectly.
-    We use cloudinary.CloudinaryImage to build the proper URL from the public_id.
+    FINAL FIX:
+    - image_field.name = 'products/image5.jpeg'  (correct public_id)
+    - image_field.url  = '...media/products/image5.jpeg'  (WRONG — has extra 'media/')
+    So we NEVER use .url — we build the URL directly from .name using CloudinaryImage.
     """
     if not image_field:
         return None
     try:
-        # image.name is the public_id e.g. "media/products/image2_kjnvk3"
-        public_id = image_field.name
-        url = cloudinary.CloudinaryImage(public_id).build_url()
-        return url
+        public_id = image_field.name  # e.g. 'products/image5.jpeg'
+        return cloudinary.CloudinaryImage(public_id).build_url(secure=True)
     except Exception:
-        # fallback to whatever Django gives us
-        try:
-            return image_field.url
-        except Exception:
-            return None
+        return None
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -60,12 +55,12 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 
 class ProductListSerializer(serializers.ModelSerializer):
-    main_image_url = serializers.SerializerMethodField()
-    category = CategorySerializer(read_only=True)
-    variants = ProductVariantSerializer(many=True, read_only=True)
-    images = serializers.SerializerMethodField()
+    main_image_url   = serializers.SerializerMethodField()
+    category         = CategorySerializer(read_only=True)
+    variants         = ProductVariantSerializer(many=True, read_only=True)
+    images           = serializers.SerializerMethodField()
     discount_percent = serializers.IntegerField(read_only=True)
-    is_wishlisted = serializers.SerializerMethodField()
+    is_wishlisted    = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -79,22 +74,22 @@ class ProductListSerializer(serializers.ModelSerializer):
         ]
 
     def get_main_image_url(self, obj):
-        img = obj.main_image
+        img = obj.images.filter(is_main=True).first() or obj.images.first()
         if img:
             return get_cloudinary_url(img.image)
         return None
 
     def get_images(self, obj):
-        result = []
-        for img in obj.images.all():
-            result.append({
-                'id': img.id,
+        return [
+            {
+                'id':        img.id,
                 'image_url': get_cloudinary_url(img.image),
-                'alt_text': img.alt_text,
-                'is_main': img.is_main,
-                'order': img.order,
-            })
-        return result
+                'alt_text':  img.alt_text,
+                'is_main':   img.is_main,
+                'order':     img.order,
+            }
+            for img in obj.images.all()
+        ]
 
     def get_is_wishlisted(self, obj):
         request = self.context.get('request')
@@ -104,14 +99,14 @@ class ProductListSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(many=True, read_only=True)
-    variants = ProductVariantSerializer(many=True, read_only=True)
-    reviews = ReviewSerializer(many=True, read_only=True)
-    category = CategorySerializer(read_only=True)
+    images           = ProductImageSerializer(many=True, read_only=True)
+    variants         = ProductVariantSerializer(many=True, read_only=True)
+    reviews          = ReviewSerializer(many=True, read_only=True)
+    category         = CategorySerializer(read_only=True)
     discount_percent = serializers.IntegerField(read_only=True)
-    avg_rating = serializers.SerializerMethodField()
-    review_count = serializers.SerializerMethodField()
-    is_wishlisted = serializers.SerializerMethodField()
+    avg_rating       = serializers.SerializerMethodField()
+    review_count     = serializers.SerializerMethodField()
+    is_wishlisted    = serializers.SerializerMethodField()
 
     class Meta:
         model = Product

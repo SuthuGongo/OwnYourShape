@@ -45,6 +45,7 @@ def send_order_confirmation(order):
         msg.send(fail_silently=False)
         logger.info(f"Confirmation email sent for {order.order_number} to {order.email}")
     except Exception as e:
+        # FIX: log but don't crash the order — email failure must not block checkout
         logger.error(f"Email failed for {order.order_number}: {e}")
 
 
@@ -91,6 +92,7 @@ def send_order_sms(order):
         response = sms.send(**kwargs)
         logger.info(f"SMS sent for {order.order_number}: {response}")
     except Exception as e:
+        # FIX: log but don't crash the order
         logger.error(f"SMS failed for {order.order_number}: {e}")
 
 
@@ -110,10 +112,28 @@ class OrderCreateView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        order = serializer.save()
+
+        # FIX: catch validation errors and return them clearly instead of 500
+        if not serializer.is_valid():
+            logger.error(f"Order validation failed: {serializer.errors}")
+            return Response(
+                {'detail': 'Invalid order data.', 'errors': serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            order = serializer.save()
+        except Exception as e:
+            logger.error(f"Order save failed: {e}", exc_info=True)
+            return Response(
+                {'detail': f'Failed to create order: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Email and SMS failures must NOT block the response
         send_order_confirmation(order)
         send_order_sms(order)
+
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 

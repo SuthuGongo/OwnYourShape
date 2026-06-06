@@ -27,13 +27,16 @@ const COLOUR_MAP = {
   'Burgundy':   '#7A2040',
 };
 
+// Each filter has a list of keywords matched against product name (lowercase).
+// This is the fix — your Product model has no subcategory or tags field,
+// so we match against the name instead.
 const FILTERS = [
-  { label: 'All',         value: 'all' },
-  { label: 'Dresses',     value: 'dresses' },
-  { label: 'Leggings',    value: 'leggings' },
-  { label: 'Sports Bras', value: 'sports-bras' },
-  { label: 'Tops',        value: 'tops' },
-  { label: 'Sets',        value: 'sets' },
+  { label: 'All',         value: 'all',         keywords: [] },
+  { label: 'Dresses',     value: 'dresses',     keywords: ['dress', 'romper'] },
+  { label: 'Leggings',    value: 'leggings',    keywords: ['legging'] },
+  { label: 'Sports Bras', value: 'sports-bras', keywords: ['bra', 'sports bra', 'sport bra'] },
+  { label: 'Tops',        value: 'tops',        keywords: ['top', 'crop', 'tank', 'shirt', 'tee'] },
+  { label: 'Sets',        value: 'sets',        keywords: ['set'] },
 ];
 
 const SORT_OPTIONS = [
@@ -43,26 +46,19 @@ const SORT_OPTIONS = [
   { label: 'Price: High', value: '-price' },
 ];
 
-/* ─────────────────────────────────────────
-   GymCard  – one product, colour swatches
-───────────────────────────────────────── */
 function GymCard({ product }) {
   const navigate = useNavigate();
 
-  // unique colours from variants
   const colours = [...new Set(
     (product.variants || []).map(v => v.colour).filter(Boolean)
   )];
 
-  // active colour drives swatch highlight + which sizes show in hover bar
   const [activeColour, setActiveColour] = useState(colours[0] || '');
 
-  // image to show: first image whose alt_text matches activeColour, else main
   const allImages   = product.images || [];
   const colourImage = allImages.find(img => img.alt_text === activeColour);
-  const displaySrc  = colourImage?.image_url || product.main_image_url;
+  const displaySrc  = colourImage?.image_url || product.main_image_url || null;
 
-  // sizes available for the active colour
   const sizesForColour = [...new Set(
     (product.variants || [])
       .filter(v => !activeColour || v.colour === activeColour)
@@ -83,7 +79,6 @@ function GymCard({ product }) {
       tabIndex={0}
       onKeyDown={e => e.key === 'Enter' && goToProduct()}
     >
-      {/* ── Image ── */}
       <div className="gw-card__img-wrap">
         <div className="gw-card__img-inner">
           {displaySrc
@@ -92,18 +87,15 @@ function GymCard({ product }) {
           }
         </div>
 
-        {/* Badges */}
         {isOnSale && <span className="gw-badge gw-badge--sale">Sale</span>}
         {product.is_featured && !isOnSale && <span className="gw-badge gw-badge--new">New</span>}
 
-        {/* Wishlist */}
         <button className="gw-wish" onClick={e => e.stopPropagation()} aria-label="Add to wishlist">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
         </button>
 
-        {/* Hover overlay */}
         <div className="gw-card__hover">
           {sizesForColour.length > 0 && (
             <div className="gw-card__sizes">
@@ -119,11 +111,9 @@ function GymCard({ product }) {
         </div>
       </div>
 
-      {/* ── Info ── */}
       <div className="gw-card__info">
         <p className="gw-card__name">{product.name}</p>
 
-        {/* Colour swatches */}
         {colours.length > 0 && (
           <div className="gw-card__swatches" onClick={e => e.stopPropagation()}>
             {colours.map(c => (
@@ -153,9 +143,6 @@ function GymCard({ product }) {
   );
 }
 
-/* ─────────────────────────────────────────
-   Gymwear page
-───────────────────────────────────────── */
 export default function Gymwear() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -163,19 +150,28 @@ export default function Gymwear() {
   const [sort, setSort]         = useState('-is_featured');
   const [search, setSearch]     = useState('');
 
+  // Fetch all gymwear once per sort change — filtering is purely client-side
   useEffect(() => {
     setLoading(true);
-    API.get(`/products/?category__slug=gymwear&ordering=${sort}&page_size=50`)
-      .then(({ data }) => setProducts(data.results || data))
+    API.get(`/products/?category__slug=gymwear&ordering=${sort}&page_size=100`)
+      .then(({ data }) => setProducts(data.results ?? data))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [sort]);
 
+  const activeFilter = FILTERS.find(f => f.value === active);
+
   const filtered = products.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = active === 'all' ||
-      p.subcategory?.slug === active ||
-      p.tags?.includes(active);
+    const nameLower = p.name.toLowerCase();
+
+    // Search match
+    const matchSearch = !search || nameLower.includes(search.toLowerCase());
+
+    // Category tab match — keywords against product name
+    const matchFilter =
+      active === 'all' ||
+      (activeFilter?.keywords ?? []).some(kw => nameLower.includes(kw));
+
     return matchSearch && matchFilter;
   });
 
@@ -184,7 +180,6 @@ export default function Gymwear() {
       <Header />
       <main className="gw-page">
 
-        {/* ── Page header ── */}
         <div className="gw-page-header">
           <div>
             <h1 className="gw-page-title">Gymwear Collection</h1>
@@ -213,7 +208,6 @@ export default function Gymwear() {
           </div>
         </div>
 
-        {/* ── Filter tabs ── */}
         <div className="gw-filter-bar">
           {FILTERS.map(f => (
             <button
@@ -226,7 +220,6 @@ export default function Gymwear() {
           ))}
         </div>
 
-        {/* ── Grid ── */}
         {loading ? (
           <div className="spinner-wrap" style={{ minHeight: '40vh' }}>
             <div className="spinner" />
@@ -234,7 +227,11 @@ export default function Gymwear() {
         ) : filtered.length === 0 ? (
           <div className="gw-empty">
             <p>No products found{search ? ` for "${search}"` : ''}.</p>
-            {search && <button className="btn-ghost" onClick={() => setSearch('')}>Clear search</button>}
+            {(search || active !== 'all') && (
+              <button className="btn-ghost" onClick={() => { setSearch(''); setActive('all'); }}>
+                Clear filters
+              </button>
+            )}
           </div>
         ) : (
           <div className="gw-grid">
