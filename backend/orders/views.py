@@ -20,21 +20,18 @@ FROM_EMAIL = 'Own Your Shape <noreply@ownyourshape.co.za>'
 
 
 def send_order_confirmation(order):
-    """Send a branded HTML order confirmation email."""
-    context = {
-        'order': order,
-        'items': order.items.all(),
-    }
-    html_body = render_to_string('emails/order_confirmation.html', context)
-    plain_body = (
-        f"Hi {order.shipping_name},\n\n"
-        f"Thank you for your order!\n\n"
-        f"Order number: {order.order_number}\n"
-        f"Total: R {order.total}\n\n"
-        f"We'll be in touch once your order is on its way.\n\n"
-        f"— Own Your Shape Team"
-    )
+    """Send order confirmation email — failure is logged but never crashes the order."""
     try:
+        context = {'order': order, 'items': order.items.all()}
+        html_body = render_to_string('emails/order_confirmation.html', context)
+        plain_body = (
+            f"Hi {order.shipping_name},\n\n"
+            f"Thank you for your order!\n\n"
+            f"Order number: {order.order_number}\n"
+            f"Total: R {order.total}\n\n"
+            f"We'll be in touch once your order is on its way.\n\n"
+            f"— Own Your Shape Team"
+        )
         msg = EmailMultiAlternatives(
             subject=f'Order confirmed — {order.order_number}',
             body=plain_body,
@@ -45,12 +42,12 @@ def send_order_confirmation(order):
         msg.send(fail_silently=False)
         logger.info(f"Confirmation email sent for {order.order_number} to {order.email}")
     except Exception as e:
-        # FIX: log but don't crash the order — email failure must not block checkout
+        # CRITICAL: log but never raise — email failure must not block the order response
         logger.error(f"Email failed for {order.order_number}: {e}")
 
 
 def send_order_sms(order):
-    """Send SMS via Africa's Talking — only runs if credentials are configured."""
+    """Send SMS via Africa's Talking — failure is logged but never crashes the order."""
     try:
         import africastalking
     except ImportError:
@@ -59,14 +56,12 @@ def send_order_sms(order):
 
     phone = getattr(order, 'shipping_phone', None)
     if not phone:
-        logger.info(f"SMS skipped for {order.order_number} — no phone number.")
         return
 
     phone = phone.strip().replace(' ', '').replace('-', '')
     if phone.startswith('0') and len(phone) == 10:
         phone = '+27' + phone[1:]
     if not phone.startswith('+'):
-        logger.warning(f"SMS skipped — unrecognised number format: {phone}")
         return
 
     username  = getattr(settings, 'AT_USERNAME', '')
@@ -74,7 +69,6 @@ def send_order_sms(order):
     sender_id = getattr(settings, 'AT_SENDER_ID', '') or None
 
     if not username or not api_key:
-        logger.info("SMS skipped — AT_USERNAME or AT_API_KEY not set.")
         return
 
     try:
@@ -92,7 +86,6 @@ def send_order_sms(order):
         response = sms.send(**kwargs)
         logger.info(f"SMS sent for {order.order_number}: {response}")
     except Exception as e:
-        # FIX: log but don't crash the order
         logger.error(f"SMS failed for {order.order_number}: {e}")
 
 
@@ -113,7 +106,6 @@ class OrderCreateView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
 
-        # FIX: catch validation errors and return them clearly instead of 500
         if not serializer.is_valid():
             logger.error(f"Order validation failed: {serializer.errors}")
             return Response(
@@ -130,7 +122,7 @@ class OrderCreateView(generics.CreateAPIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Email and SMS failures must NOT block the response
+        # Email and SMS are fire-and-forget — they never block the response
         send_order_confirmation(order)
         send_order_sms(order)
 
