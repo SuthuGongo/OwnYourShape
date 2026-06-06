@@ -39,7 +39,7 @@ def send_order_confirmation(order):
             to=[order.email],
         )
         msg.attach_alternative(html_body, 'text/html')
-        msg.send(fail_silently=False)
+        msg.send(fail_silently=True)
         logger.info(f"Confirmation email sent for {order.order_number} to {order.email}")
     except Exception as e:
         # CRITICAL: log but never raise — email failure must not block the order response
