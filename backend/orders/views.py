@@ -1,4 +1,5 @@
 import logging
+import threading
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -20,73 +21,87 @@ FROM_EMAIL = 'Own Your Shape <noreply@ownyourshape.co.za>'
 
 
 def send_order_confirmation(order):
-    """Send order confirmation email — failure is logged but never crashes the order."""
-    try:
-        context = {'order': order, 'items': order.items.all()}
-        html_body = render_to_string('emails/order_confirmation.html', context)
-        plain_body = (
-            f"Hi {order.shipping_name},\n\n"
-            f"Thank you for your order!\n\n"
-            f"Order number: {order.order_number}\n"
-            f"Total: R {order.total}\n\n"
-            f"We'll be in touch once your order is on its way.\n\n"
-            f"— Own Your Shape Team"
-        )
-        msg = EmailMultiAlternatives(
-            subject=f'Order confirmed — {order.order_number}',
-            body=plain_body,
-            from_email=FROM_EMAIL,
-            to=[order.email],
-        )
-        msg.attach_alternative(html_body, 'text/html')
-        msg.send(fail_silently=True)
-        logger.info(f"Confirmation email sent for {order.order_number} to {order.email}")
-    except Exception as e:
-        # CRITICAL: log but never raise — email failure must not block the order response
-        logger.error(f"Email failed for {order.order_number}: {e}")
+    """
+    Send order confirmation email in a background thread.
+    This means the email attempt NEVER blocks or times out the HTTP response —
+    even if Railway blocks SMTP, the order completes instantly.
+    """
+    def _send():
+        try:
+            context = {'order': order, 'items': order.items.all()}
+            html_body = render_to_string('emails/order_confirmation.html', context)
+            plain_body = (
+                f"Hi {order.shipping_name},\n\n"
+                f"Thank you for your order!\n\n"
+                f"Order number: {order.order_number}\n"
+                f"Total: R {order.total}\n\n"
+                f"We'll be in touch once your order is on its way.\n\n"
+                f"— Own Your Shape Team"
+            )
+            msg = EmailMultiAlternatives(
+                subject=f'Order confirmed — {order.order_number}',
+                body=plain_body,
+                from_email=FROM_EMAIL,
+                to=[order.email],
+            )
+            msg.attach_alternative(html_body, 'text/html')
+            msg.send(fail_silently=True)
+            logger.info(f"Confirmation email sent for {order.order_number} to {order.email}")
+        except Exception as e:
+            logger.error(f"Email failed for {order.order_number}: {e}")
+
+    thread = threading.Thread(target=_send, daemon=True)
+    thread.start()
 
 
 def send_order_sms(order):
-    """Send SMS via Africa's Talking — failure is logged but never crashes the order."""
-    try:
-        import africastalking
-    except ImportError:
-        logger.info("africastalking not installed — SMS skipped.")
-        return
+    """
+    Send SMS in a background thread.
+    Same pattern — never blocks the HTTP response.
+    """
+    def _send():
+        try:
+            import africastalking
+        except ImportError:
+            logger.info("africastalking not installed — SMS skipped.")
+            return
 
-    phone = getattr(order, 'shipping_phone', None)
-    if not phone:
-        return
+        phone = getattr(order, 'shipping_phone', None)
+        if not phone:
+            return
 
-    phone = phone.strip().replace(' ', '').replace('-', '')
-    if phone.startswith('0') and len(phone) == 10:
-        phone = '+27' + phone[1:]
-    if not phone.startswith('+'):
-        return
+        phone = phone.strip().replace(' ', '').replace('-', '')
+        if phone.startswith('0') and len(phone) == 10:
+            phone = '+27' + phone[1:]
+        if not phone.startswith('+'):
+            return
 
-    username  = getattr(settings, 'AT_USERNAME', '')
-    api_key   = getattr(settings, 'AT_API_KEY', '')
-    sender_id = getattr(settings, 'AT_SENDER_ID', '') or None
+        username  = getattr(settings, 'AT_USERNAME', '')
+        api_key   = getattr(settings, 'AT_API_KEY', '')
+        sender_id = getattr(settings, 'AT_SENDER_ID', '') or None
 
-    if not username or not api_key:
-        return
+        if not username or not api_key:
+            return
 
-    try:
-        africastalking.initialize(username, api_key)
-        sms = africastalking.SMS
-        message = (
-            f"Hi {order.shipping_name.split()[0]}! "
-            f"Your Own Your Shape order {order.order_number} "
-            f"(R{int(order.total)}) is confirmed. "
-            f"We'll notify you when it ships."
-        )
-        kwargs = dict(message=message, recipients=[phone])
-        if sender_id:
-            kwargs['sender_id'] = sender_id
-        response = sms.send(**kwargs)
-        logger.info(f"SMS sent for {order.order_number}: {response}")
-    except Exception as e:
-        logger.error(f"SMS failed for {order.order_number}: {e}")
+        try:
+            africastalking.initialize(username, api_key)
+            sms = africastalking.SMS
+            message = (
+                f"Hi {order.shipping_name.split()[0]}! "
+                f"Your Own Your Shape order {order.order_number} "
+                f"(R{int(order.total)}) is confirmed. "
+                f"We'll notify you when it ships."
+            )
+            kwargs = dict(message=message, recipients=[phone])
+            if sender_id:
+                kwargs['sender_id'] = sender_id
+            response = sms.send(**kwargs)
+            logger.info(f"SMS sent for {order.order_number}: {response}")
+        except Exception as e:
+            logger.error(f"SMS failed for {order.order_number}: {e}")
+
+    thread = threading.Thread(target=_send, daemon=True)
+    thread.start()
 
 
 class ValidatePromoView(APIView):
@@ -122,7 +137,7 @@ class OrderCreateView(generics.CreateAPIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Email and SMS are fire-and-forget — they never block the response
+        # Fire-and-forget in background threads — never blocks the response
         send_order_confirmation(order)
         send_order_sms(order)
 
