@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 PIN_EXPIRY_MINUTES = 15
-FROM_EMAIL = 'Own Your Shape <noreply@ownyourshape.co.za>'
+FROM_EMAIL = 'Own Your Shape <nobesuthu.gongo03@gmail.com>'
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
