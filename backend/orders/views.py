@@ -1,276 +1,148 @@
 import logging
-from datetime import timedelta
-
-from django.contrib.auth import authenticate, get_user_model
-from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
-from django.utils import timezone
+import threading
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-
-from .models import EmailVerification, Address
-from .serializers import RegisterSerializer, UserSerializer, AddressSerializer
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.conf import settings
+from .models import Order
+from .serializers import OrderCreateSerializer, OrderSerializer
 
 logger = logging.getLogger(__name__)
 
-User = get_user_model()
+PROMO_CODES = {
+    'WELCOME': 10,
+    'DREAMINLACE': 15,
+    'SUMMER25': 25,
+}
 
-PIN_EXPIRY_MINUTES = 15
-FROM_EMAIL = "Own Your Shape <nobesuthu.gongo03@gmail.com>"
-
-
-# ─── helpers ──────────────────────────────────────────────────────────────────
-
-def _issue_pin(email: str) -> str:
-    """Delete all old PINs for this email, create a fresh one, return it."""
-    EmailVerification.objects.filter(email=email).delete()
-    pin = EmailVerification.generate_pin()
-    EmailVerification.objects.create(email=email, pin=pin)
-    return pin
+FROM_EMAIL = 'Own Your Shape <nobesuthu.gongo03@gmail.com>'
 
 
-def _consume_pin(email: str, pin: str) -> bool:
-    """
-    Return True if a valid, unexpired, unused PIN matches.
-    Marks it used on success. Deletes it if expired.
-    """
-    record = EmailVerification.objects.filter(email=email, pin=pin, used=False).last()
-    if not record:
-        return False
-    cutoff = timezone.now() - timedelta(minutes=PIN_EXPIRY_MINUTES)
-    if record.created_at < cutoff:
-        record.delete()
-        return False
-    record.used = True
-    record.save()
-    return True
-
-
-def _send_html_email(to: str, subject: str, template: str, context: dict):
-    """
-    Send a plain-text + HTML multipart email.
-    FIX: Added logging so you can see exactly what fails in Railway logs.
-    The template path must match your actual folder:
-      - File lives at:  <BASE_DIR>/templates/emails/verify_email.html
-      - Loaded as:      'emails/verify_email.html'
-    Make sure that folder exists and is committed to your repo.
-    """
-    context['expiry_minutes'] = PIN_EXPIRY_MINUTES
-
-    try:
-        html_body = render_to_string(template, context)
-    except Exception as e:
-        logger.error(f"Template render failed for '{template}': {e}")
-        raise
-
-    plain_body = (
-        f"Your Own Your Shape PIN is: {context['pin']}\n\n"
-        f"It expires in {PIN_EXPIRY_MINUTES} minutes.\n\n"
-        f"If you didn't request this, ignore this email."
-    )
-
-    try:
-        msg = EmailMultiAlternatives(
-            subject=subject,
-            body=plain_body,
-            from_email=FROM_EMAIL,
-            to=[to],
-        )
-        msg.attach_alternative(html_body, 'text/html')
-        msg.send(fail_silently=False)
-        logger.info(f"Email sent to {to} | subject: {subject}")
-    except Exception as e:
-        logger.error(f"Email send failed to {to}: {e}")
-        raise
-
-
-# ─── send signup verification PIN ─────────────────────────────────────────────
-
-class SendVerificationPinView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        email = request.data.get('email', '').lower().strip()
-        if not email:
-            return Response({'error': 'Email is required.'}, status=400)
-        if User.objects.filter(email=email).exists():
-            return Response({'error': 'An account with this email already exists.'}, status=400)
-
-        pin = _issue_pin(email)
-        logger.info(f"Verification PIN issued for {email}")
-
+def send_order_confirmation(order):
+    def _send():
         try:
-            _send_html_email(
-                to=email,
-                # FIX: was "Dream In Lace" — now correct brand name
-                subject='Verify your email — Own Your Shape',
-                template='emails/verify_email.html',
-                context={'email': email, 'pin': pin},
+            context = {'order': order, 'items': order.items.all()}
+            html_body = render_to_string('emails/order_confirmation.html', context)
+            plain_body = (
+                f"Hi {order.shipping_name},\n\n"
+                f"Thank you for your order!\n\n"
+                f"Order number: {order.order_number}\n"
+                f"Total: R {order.total}\n\n"
+                f"We'll be in touch once your order is on its way.\n\n"
+                f"— Own Your Shape Team"
             )
-        except Exception as exc:
-            logger.error(f"Verification email failed for {email}: {exc}")
-            return Response({'error': 'Failed to send verification email. Please try again.'}, status=500)
+            msg = EmailMultiAlternatives(
+                subject=f'Order confirmed — {order.order_number}',
+                body=plain_body,
+                from_email=FROM_EMAIL,
+                to=[order.email],
+            )
+            msg.attach_alternative(html_body, 'text/html')
+            msg.send(fail_silently=True)
+            logger.info(f"Confirmation email sent for {order.order_number} to {order.email}")
+        except Exception as e:
+            logger.error(f"Email failed for {order.order_number}: {e}")
 
-        return Response({'message': 'Verification PIN sent to your email.'})
-
-
-# ─── verify signup PIN ────────────────────────────────────────────────────────
-
-class VerifyPinView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        email = request.data.get('email', '').lower().strip()
-        pin   = request.data.get('pin', '').strip()
-
-        if not email or not pin:
-            return Response({'error': 'Email and PIN are required.'}, status=400)
-
-        if not _consume_pin(email, pin):
-            return Response({'error': 'Invalid or expired PIN.'}, status=400)
-
-        return Response({'message': 'Email verified successfully.'})
+    threading.Thread(target=_send, daemon=True).start()
 
 
-# ─── register ─────────────────────────────────────────────────────────────────
+def send_order_sms(order):
+    def _send():
+        try:
+            import africastalking
+        except ImportError:
+            return
 
-class RegisterView(APIView):
-    permission_classes = [permissions.AllowAny]
+        phone = getattr(order, 'shipping_phone', None)
+        if not phone:
+            return
 
-    def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            refresh = RefreshToken.for_user(user)
-            return Response({
-                'message': 'Account created successfully.',
-                'access':  str(refresh.access_token),
-                'refresh': str(refresh),
-                'user':    UserSerializer(user).data,
-            }, status=201)
-        return Response(serializer.errors, status=400)
+        phone = phone.strip().replace(' ', '').replace('-', '')
+        if phone.startswith('0') and len(phone) == 10:
+            phone = '+27' + phone[1:]
+        if not phone.startswith('+'):
+            return
 
+        username  = getattr(settings, 'AT_USERNAME', '')
+        api_key   = getattr(settings, 'AT_API_KEY', '')
+        sender_id = getattr(settings, 'AT_SENDER_ID', '') or None
 
-# ─── login ────────────────────────────────────────────────────────────────────
-
-class LoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        email    = request.data.get('email', '').lower().strip()
-        password = request.data.get('password', '')
-        user     = authenticate(request, username=email, password=password)
-        if not user:
-            return Response({'error': 'Invalid email or password.'}, status=400)
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'access':  str(refresh.access_token),
-            'refresh': str(refresh),
-            'user':    UserSerializer(user).data,
-        })
-
-
-# ─── send recovery PIN ────────────────────────────────────────────────────────
-
-class SendRecoveryPinView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        email = request.data.get('email', '').lower().strip()
-        if not email:
-            return Response({'error': 'Email is required.'}, status=400)
-
-        # Always 200 — never reveal whether the email exists
-        if User.objects.filter(email=email).exists():
-            pin = _issue_pin(email)
-            try:
-                _send_html_email(
-                    to=email,
-                    # FIX: was "Dream In Lace" — now correct brand name
-                    subject='Reset your password — Own Your Shape',
-                    template='emails/reset_password.html',
-                    context={'email': email, 'pin': pin},
-                )
-            except Exception as e:
-                logger.error(f"Recovery email failed for {email}: {e}")
-                # Silent — don't reveal whether account exists
-
-        return Response({'message': 'If that email is registered, a recovery PIN has been sent.'})
-
-
-# ─── reset password ───────────────────────────────────────────────────────────
-
-class ResetPasswordView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        email        = request.data.get('email', '').lower().strip()
-        pin          = request.data.get('pin', '').strip()
-        new_password = request.data.get('new_password', '')
-
-        if not email or not pin or not new_password:
-            return Response({'error': 'Email, PIN and new password are required.'}, status=400)
-        if len(new_password) < 8:
-            return Response({'error': 'Password must be at least 8 characters.'}, status=400)
-        if not _consume_pin(email, pin):
-            return Response({'error': 'Invalid or expired PIN.'}, status=400)
+        if not username or not api_key:
+            return
 
         try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found.'}, status=404)
+            africastalking.initialize(username, api_key)
+            sms = africastalking.SMS
+            message = (
+                f"Hi {order.shipping_name.split()[0]}! "
+                f"Your Own Your Shape order {order.order_number} "
+                f"(R{int(order.total)}) is confirmed. "
+                f"We'll notify you when it ships."
+            )
+            kwargs = dict(message=message, recipients=[phone])
+            if sender_id:
+                kwargs['sender_id'] = sender_id
+            response = sms.send(**kwargs)
+            logger.info(f"SMS sent for {order.order_number}: {response}")
+        except Exception as e:
+            logger.error(f"SMS failed for {order.order_number}: {e}")
 
-        user.set_password(new_password)
-        user.save()
-        return Response({'message': 'Password reset successfully.'})
+    threading.Thread(target=_send, daemon=True).start()
 
 
-# ─── profile ──────────────────────────────────────────────────────────────────
-
-class ProfileView(generics.RetrieveUpdateAPIView):
-    serializer_class   = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_object(self):
-        return self.request.user
-
-
-# ─── wishlist ─────────────────────────────────────────────────────────────────
-
-class WishlistView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request):
-        from products.serializers import ProductSerializer
-        products = request.user.wishlist.all()
-        return Response(ProductSerializer(products, many=True, context={'request': request}).data)
+class ValidatePromoView(APIView):
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        from products.models import Product
-        product_id = request.data.get('product_id')
+        code = request.data.get('code', '').upper().strip()
+        if code in PROMO_CODES:
+            return Response({'valid': True, 'discount_percent': PROMO_CODES[code], 'code': code})
+        return Response({'valid': False, 'error': 'Invalid promo code.'}, status=400)
+
+
+class OrderCreateView(generics.CreateAPIView):
+    serializer_class = OrderCreateSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+
+        if not serializer.is_valid():
+            logger.error(f"Order validation failed: {serializer.errors}")
+            return Response(
+                {'detail': 'Invalid order data.', 'errors': serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
-            product = Product.objects.get(id=product_id)
-            user    = request.user
-            if product in user.wishlist.all():
-                user.wishlist.remove(product)
-                return Response({'message': 'Removed from wishlist.', 'wishlisted': False})
-            else:
-                user.wishlist.add(product)
-                return Response({'message': 'Added to wishlist.', 'wishlisted': True})
-        except Product.DoesNotExist:
-            return Response({'error': 'Product not found.'}, status=404)
+            order = serializer.save()
+        except Exception as e:
+            logger.error(f"Order save failed: {e}", exc_info=True)
+            return Response(
+                {'detail': f'Failed to create order: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        send_order_confirmation(order)
+        send_order_sms(order)
+
+        return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 
-# ─── addresses ────────────────────────────────────────────────────────────────
+class OrderDetailView(generics.RetrieveAPIView):
+    serializer_class = OrderSerializer
+    permission_classes = [permissions.AllowAny]
+    lookup_field = 'order_number'
 
-class AddressListCreateView(generics.ListCreateAPIView):
-    serializer_class   = AddressSerializer
+    def get_queryset(self):
+        return Order.objects.prefetch_related('items')
+
+
+class MyOrdersView(generics.ListAPIView):
+    serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Address.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        return Order.objects.filter(user=self.request.user).prefetch_related('items')
